@@ -1,5 +1,5 @@
 import tensorflow as tf
-import setup_path
+#import setup_path
 import airsim
 from collections import deque
 
@@ -17,6 +17,8 @@ DEPTH_IMAGE_HEIGHT = 144
 flatten_len = 9216      # the input shape before full connect layer
 NumBufferFrames = 4     # take the latest 4 frames as input
 
+tf.compat.v1.disable_eager_execution()
+
 def variable_summaries(var):
     """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
     with tf.name_scope('summaries'):
@@ -30,7 +32,7 @@ def variable_summaries(var):
     tf.summary.histogram('histogram', var)
 
 def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev=0.01)
+    initial = tf.compat.v1.truncated_normal(shape, stddev=0.01)
     return tf.Variable(initial, name="weights")
 
 def bias_variable(shape):
@@ -74,14 +76,14 @@ class Deep_Q_Network(object):
             variable_summaries(W_adv_out)
             b_adv_out = bias_variable([ACTION_NUMS])
         # input layer
-        self.state = tf.placeholder("float", [None, DEPTH_IMAGE_HEIGHT, DEPTH_IMAGE_WIDTH, NumBufferFrames])
+        self.state = tf.compat.v1.placeholder("float", [None, DEPTH_IMAGE_HEIGHT, DEPTH_IMAGE_WIDTH, NumBufferFrames])
         # Conv1 layer
         h_conv1 = tf.nn.relu(conv2d(self.state, W_conv1, 8, 8) + b_conv1)
         # Conv2 layer
         h_conv2 = tf.nn.relu(conv2d(h_conv1, W_conv2, 2, 2) + b_conv2)
         # Conv2 layer
         h_conv3 = tf.nn.relu(conv2d(h_conv2, W_conv3, 1, 1) + b_conv3)
-        h_conv3_flat = tf.layers.flatten(h_conv3)
+        h_conv3_flat = tf.compat.v1.layers.flatten(h_conv3)
         # FC ob value layer
         h_fc_value = tf.nn.relu(tf.matmul(h_conv3_flat, W_value) + b_value)
         value = tf.matmul(h_fc_value, W_value_out) + b_value_out
@@ -93,12 +95,12 @@ class Deep_Q_Network(object):
         advIdentifiable = tf.subtract(advantage, advAvg)
         self.readout = tf.add(value, advIdentifiable)
         # define the cost function
-        self.actions = tf.placeholder("float", [None, ACTION_NUMS])
-        self.y = tf.placeholder("float", [None])
+        self.actions = tf.compat.v1.placeholder("float", [None, ACTION_NUMS])
+        self.y = tf.compat.v1.placeholder("float", [None])
         self.readout_action = tf.reduce_sum(tf.multiply(self.readout, self.actions), axis=1)
         self.td_error = tf.square(self.y - self.readout_action)
         self.cost = tf.reduce_mean(self.td_error)
-        self.train_step = tf.train.AdamOptimizer(1e-5).minimize(self.cost)
+        self.train_step = tf.compat.v1.train.AdamOptimizer(1e-5).minimize(self.cost)
 
 def get_image(client,image_type):
     if (image_type == 'Scene'):
@@ -114,9 +116,9 @@ def get_image(client,image_type):
         img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8)  # get numpy array
         img_rgba = img1d.reshape(response.height, response.width, 4)  # reshape array to 4 channel image array H X W X 4
         observation = img_rgba[:, :, 0:3]
-    elif (image_type == 'DepthPlanner'):
+    elif (image_type == 'DepthPlanar'):
         try:
-            responses = client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.DepthPlanner, pixels_as_float=True)])
+            responses = client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.DepthPlanar, pixels_as_float=True)])
             response = responses[0]
             img1d = np.array(response.image_data_float, dtype=np.float)
             img1d = img1d * 3.5 + 30
@@ -194,7 +196,7 @@ def testNetwork():
     print('Environment initialized!')
     # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.7)
     # sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
-    sess = tf.InteractiveSession()
+    sess = tf.compat.v1.InteractiveSession()
     with tf.name_scope("TargetNetwork"):
         Q_net = Deep_Q_Network(sess)
     time.sleep(1)
@@ -202,22 +204,22 @@ def testNetwork():
     reward_var = tf.Variable(0., trainable=False)
     tf.summary.scalar('reward', reward_var)
     # define summary
-    merged_summary = tf.summary.merge_all()
-    summary_writer = tf.summary.FileWriter('./logs', sess.graph)
+    merged_summary = tf.compat.v1.summary.merge_all()
+    summary_writer = tf.compat.v1.summary.FileWriter('./logs', sess.graph)
     # get the first state
-    observe_init = get_image(client,'DepthPlanner')
+    observe_init = get_image(client,'DepthPlanar')
     state_pre = np.stack((observe_init, observe_init, observe_init, observe_init), axis=2)
     # saving and loading networks
-    trainables = tf.trainable_variables()
-    trainable_saver = tf.train.Saver(trainables)
-    sess.run(tf.global_variables_initializer())
-    checkpoint = tf.train.get_checkpoint_state("saved_networks/new_model_lidar/")
+    trainables = tf.compat.v1.trainable_variables()
+    trainable_saver = tf.compat.v1.train.Saver(trainables)
+    sess.run(tf.compat.v1.global_variables_initializer())
+    checkpoint = tf.train.get_checkpoint_state("saved_networks/new_model/")
     print('checkpoint:', checkpoint)
     if checkpoint and checkpoint.model_checkpoint_path:
         trainable_saver.restore(sess, checkpoint.model_checkpoint_path)
         print("Successfully loaded:", checkpoint.model_checkpoint_path)
     else:
-        if not os.path.exists("saved_networks/new_model_lidar"):
+        if not os.path.exists("saved_networks/new_model"):
             os.mkdir("saved_networks/new_model_lidar")
             print('The file not exists, is created successfully')
         print("Could not find old network weights")
@@ -235,7 +237,7 @@ def testNetwork():
         latest_distance = 300
         while not reset:
             # take the latest 4 frames as an input
-            observe = get_image(client,'DepthPlanner')
+            observe = get_image(client,'DepthPlanar')
             observe = np.reshape(observe, (DEPTH_IMAGE_HEIGHT, DEPTH_IMAGE_WIDTH, 1))
             state_current = np.append(observe, state_pre[:, :, :(NumBufferFrames - 1)], axis=2)
             terminal,reset,distance,map_grid,latest_distance= env_feedback(client,map_grid,latest_distance)

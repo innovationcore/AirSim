@@ -21,6 +21,7 @@ MAX_EPISODE = 20000
 DEPTH_IMAGE_WIDTH = 256
 DEPTH_IMAGE_HEIGHT = 144
 MAX_DISTANCE = 400
+MAX_CAR_SPEED = 8
 
 TAU = 0.001             # Rate to update target network toward primary network
 flatten_len = 9216      # the input shape before full connect layer
@@ -195,6 +196,10 @@ def env_feedback(client,pre_position):
         else:
             reward = -20 / distance
         if(distance>MAX_DISTANCE): #Reset if it gets too far from final point
+            reward = -20 / distance
+            reset = True
+        car_speed = client.getCarState().speed
+        if(car_speed>MAX_CAR_SPEED): #If it goes too fast
             reward = -20 / distance
             reset = True
     if (distance <= 10):
