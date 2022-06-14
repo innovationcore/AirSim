@@ -20,10 +20,13 @@ MINI_BATCH = 32         # size of mini batch
 MAX_EPISODE = 20000
 DEPTH_IMAGE_WIDTH = 256
 DEPTH_IMAGE_HEIGHT = 144
+MAX_DISTANCE = 400
 
 TAU = 0.001             # Rate to update target network toward primary network
 flatten_len = 9216      # the input shape before full connect layer
 NumBufferFrames = 4     # take the latest 4 frames as input
+
+tf.compat.v1.disable_eager_execution()
 
 def variable_summaries(var):
     """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
@@ -38,7 +41,7 @@ def variable_summaries(var):
     tf.summary.histogram('histogram', var)
 
 def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev=0.01)
+    initial = tf.compat.v1.truncated_normal(shape, stddev=0.01)
     return tf.Variable(initial, name="weights")
 
 def bias_variable(shape):
@@ -82,14 +85,14 @@ class Deep_Q_Network(object):
             variable_summaries(W_adv_out)
             b_adv_out = bias_variable([ACTION_NUMS])
         # input layer
-        self.state = tf.placeholder("float", [None, DEPTH_IMAGE_HEIGHT, DEPTH_IMAGE_WIDTH, NumBufferFrames])
+        self.state = tf.compat.v1.placeholder("float", [None, DEPTH_IMAGE_HEIGHT, DEPTH_IMAGE_WIDTH, NumBufferFrames])
         # Conv1 layer
         h_conv1 = tf.nn.relu(conv2d(self.state, W_conv1, 8, 8) + b_conv1)
         # Conv2 layer
         h_conv2 = tf.nn.relu(conv2d(h_conv1, W_conv2, 2, 2) + b_conv2)
         # Conv2 layer
         h_conv3 = tf.nn.relu(conv2d(h_conv2, W_conv3, 1, 1) + b_conv3)
-        h_conv3_flat = tf.layers.flatten(h_conv3)
+        h_conv3_flat = tf.compat.v1.layers.flatten(h_conv3)
         # FC ob value layer
         h_fc_value = tf.nn.relu(tf.matmul(h_conv3_flat, W_value) + b_value)
         value = tf.matmul(h_fc_value, W_value_out) + b_value_out
@@ -101,12 +104,12 @@ class Deep_Q_Network(object):
         advIdentifiable = tf.subtract(advantage, advAvg)
         self.readout = tf.add(value, advIdentifiable)
         # define the cost function
-        self.actions = tf.placeholder("float", [None, ACTION_NUMS])
-        self.y = tf.placeholder("float", [None])
+        self.actions = tf.compat.v1.placeholder("float", [None, ACTION_NUMS])
+        self.y = tf.compat.v1.placeholder("float", [None])
         self.readout_action = tf.reduce_sum(tf.multiply(self.readout, self.actions), axis=1)
         self.td_error = tf.square(self.y - self.readout_action)
         self.cost = tf.reduce_mean(self.td_error)
-        self.train_step = tf.train.AdamOptimizer(1e-5).minimize(self.cost)
+        self.train_step = tf.compat.v1.train.AdamOptimizer(1e-5).minimize(self.cost)
 
 def updateTargetGraph(tfVars, tau):
     total_vars = len(tfVars)
@@ -134,11 +137,11 @@ def get_image(client,image_type):
         img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8)  # get numpy array
         img_rgba = img1d.reshape(response.height, response.width, 4)  # reshape array to 4 channel image array H X W X 4
         observation = img_rgba[:, :, 0:3]
-    elif (image_type == 'DepthPlanner'):
+    elif (image_type == 'DepthPlanar'):
         try:
-            responses = client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.DepthPlanner, pixels_as_float=True)])
+            responses = client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.DepthPlanar, pixels_as_float=True)])
             response = responses[0]
-            img1d = np.array(response.image_data_float, dtype=np.float)
+            img1d = np.array(response.image_data_float, dtype=float)
             img1d = img1d * 3.5 + 30
             img1d[img1d > 255] = 255
             img2d = np.reshape(img1d, (responses[0].height, responses[0].width))
@@ -174,7 +177,7 @@ def go_back(client,car_controls):
     return car_controls
 
 def env_feedback(client,pre_position):
-    terminal_position = [-130, -210]
+    terminal_position = [240, 112]
     reset = False
     collision_info = client.simGetCollisionInfo()
     car_position = client.getCarState().kinematics_estimated.position
@@ -191,6 +194,9 @@ def env_feedback(client,pre_position):
             reward = 20/distance
         else:
             reward = -20 / distance
+        if(distance>MAX_DISTANCE): #Reset if it gets too far from final point
+            reward = -20 / distance
+            reset = True
     if (distance <= 10):
         terminal = 1
         reset = True
@@ -257,7 +263,7 @@ def trainNetwork():
     print('Environment initialized!')
     # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.7)
     # sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
-    sess = tf.InteractiveSession()
+    sess = tf.compat.v1.InteractiveSession()
     with tf.name_scope("OnlineNetwork"):
         online_net = Deep_Q_Network(sess)
     with tf.name_scope("TargetNetwork"):
@@ -267,18 +273,18 @@ def trainNetwork():
     reward_var = tf.Variable(0., trainable=False)
     tf.summary.scalar('reward', reward_var)
     # define summary
-    merged_summary = tf.summary.merge_all()
-    summary_writer = tf.summary.FileWriter('./logs', sess.graph)
+    merged_summary = tf.compat.v1.summary.merge_all()
+    summary_writer = tf.compat.v1.summary.FileWriter('./logs', sess.graph)
     # Initialize the buffer
     replay_experiences = deque()
     replay_experiences = store_transition(replay_experiences,'read')
     # get the first state
-    observe_init = get_image(client,'DepthPlanner')
+    observe_init = get_image(client,'DepthPlanar')
     state_pre = np.stack((observe_init, observe_init, observe_init, observe_init), axis=2)
     # saving and loading networks
-    trainables = tf.trainable_variables()
-    trainable_saver = tf.train.Saver(trainables)
-    sess.run(tf.global_variables_initializer())
+    trainables = tf.compat.v1.trainable_variables()
+    trainable_saver = tf.compat.v1.train.Saver(trainables)
+    sess.run(tf.compat.v1.global_variables_initializer())
     checkpoint = tf.train.get_checkpoint_state("saved_networks/new_model/")
     print('checkpoint:', checkpoint)
     if checkpoint and checkpoint.model_checkpoint_path:
@@ -306,7 +312,7 @@ def trainNetwork():
         pre_position = [car_position.x_val,car_position.y_val]
         while not reset:
             # take the latest 4 frames as an input
-            observe = get_image(client,'DepthPlanner')
+            observe = get_image(client,'DepthPlanar')
             observe = np.reshape(observe, (DEPTH_IMAGE_HEIGHT, DEPTH_IMAGE_WIDTH, 1))
             state_current = np.append(observe, state_pre[:, :, :(NumBufferFrames - 1)], axis=2)
             current_position,distance,reward_current, terminal,reset = env_feedback(client,pre_position)
@@ -323,11 +329,11 @@ def trainNetwork():
             # fill the reply experience
             if len(replay_experiences) <= OBSERVE:
                 action_index = random.randrange(ACTION_NUMS)
-                print('episode=%05d,step=%05d,we are observing the env,the action is random......'%(episode,step))
+                #print('episode=%05d,step=%05d,we are observing the env,the action is random......'%(episode,step))
                 action_current[action_index] = 1
             else:
                 if random.random() <= epsilon:
-                    print("----------Random Action----------")
+                    #print("----------Random Action----------")
                     action_index = random.randrange(ACTION_NUMS)
                     action_current[action_index] = 1
                 else:
@@ -339,9 +345,9 @@ def trainNetwork():
             inner_loop_time_end = time.time()
             car_controls = excute_action(client,car_controls,steer)
             client.setCarControls(car_controls)
-            print_action(episode, step, car_controls, distance, steer, reward_current)
-            print(',experience len=%05d'%len(replay_experiences),end='')
-            print(',inner loop=%.4fs'%(inner_loop_time_end-inner_loop_time_start))
+            #print_action(episode, step, car_controls, distance, steer, reward_current)
+            #print(',experience len=%05d'%len(replay_experiences),end='')
+            #print(',inner loop=%.4fs'%(inner_loop_time_end-inner_loop_time_start))
             inner_loop_time_start = time.time()
             time.sleep(0.5)
             pre_position = current_position
@@ -381,8 +387,8 @@ def trainNetwork():
             trainable_saver.save(sess, "saved_networks/new_model/Simply_maze",global_step=episode,write_state=True)
             print('######## The mode has been saved successfully after %d episodes ##########' % episode)
             #  write summaries
-            summary_str = sess.run(merged_summary, feed_dict={reward_var: reward_episode})
-            summary_writer.add_summary(summary_str, episode)
+            #summary_str = sess.run(merged_summary, feed_dict={reward_var: reward_episode})
+            #summary_writer.add_summary(summary_str, episode)
         if(len(replay_experiences)<2500):
             signal_back = store_transition(replay_experiences, 'store')
             if signal_back:
@@ -392,7 +398,8 @@ def trainNetwork():
 
         loop_end_time = time.time()
         loop_time = loop_end_time - loop_start_time
-        print("EPISODE", episode, "/ REWARD", reward_episode, "/ steps ", step, "/ LoopTime:", loop_time)
+        #print("EPISODE", episode, "/ REWARD", reward_episode, "/ steps ", step, "/ LoopTime:", loop_time)
+        print("EPISODE", episode, "/ REWARD", reward_episode, "/ steps ", step, "/ Distance:", distance)
         episode = episode + 1
         client.reset()
 
