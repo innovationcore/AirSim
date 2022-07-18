@@ -1,18 +1,18 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 import tensorflow as tf
-from keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential, Model
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential, Model
 from keras.layers.convolutional import Convolution2D
-from keras.layers import Conv2D, MaxPooling2D, Dropout, Flatten, Dense, Lambda, Input, concatenate
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dropout, Flatten, Dense, Lambda, Input, concatenate
 from keras.layers.core import Activation
 from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import ELU, LeakyReLU
-from keras.optimizers import Adam, SGD, Adamax, Nadam
-from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, CSVLogger, EarlyStopping
+from tensorflow.keras.optimizers import Adam, SGD, Adamax, Nadam
+from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, CSVLogger, EarlyStopping
 import keras.backend as K
 from keras.preprocessing import image
-from keras_tqdm import TQDMNotebookCallback
+from tqdm.keras import TqdmCallback
 import json
 import os
 import numpy as np
@@ -79,16 +79,21 @@ img_stack = Dense(1, name="output", activation = out_activation, kernel_initiali
 adam = Adam(lr=learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 
 model = Model(inputs=[pic_input], outputs=img_stack)
-model.compile(optimizer=adam, loss='mse')
+model.compile(optimizer=adam, loss='mse', metrics=[tf.keras.metrics.Accuracy()])
 
 model.summary()
 
 plateau_callback = ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=3, min_lr=learning_rate, verbose=1)
 csv_callback = CSVLogger(os.path.join(MODEL_OUTPUT_DIR, 'training_log.csv'))
-checkpoint_filepath = os.path.join(MODEL_OUTPUT_DIR, 'fresh_models', '{0}_model.{1}-{2}.h5'.format('model', '{epoch:02d}', '{val_loss:.7f}'))
+checkpoint_filepath =os.path.join(MODEL_OUTPUT_DIR, 'model-{epoch:02d}-{val_loss:.7f}.h5')
+#checkpoint_filepath = os.path.join(MODEL_OUTPUT_DIR, 'fresh_models/', '{0}_model_{1}-{2}.h5'.format('model', '{{epoch:02d}}', '{{val_loss:.7f}}'))
+print(checkpoint_filepath)
 checkpoint_callback = ModelCheckpoint(checkpoint_filepath, save_best_only=True, verbose=1)
-early_stopping_callback = EarlyStopping(monitor="val_loss", patience=training_patience, verbose=1)
-callbacks=[plateau_callback, csv_callback, checkpoint_callback, early_stopping_callback, TQDMNotebookCallback()]
+#early_stopping_callback = EarlyStopping(monitor="val_loss", patience=training_patience, verbose=1)
+callbacks=[plateau_callback, csv_callback, checkpoint_callback]
 
-history = model.fit_generator(train_generator, steps_per_epoch=num_train_examples//batch_size, epochs=number_of_epochs, callbacks=callbacks,\
-                   validation_data=eval_generator, validation_steps=num_eval_examples//batch_size, verbose=2)
+history = model.fit(train_generator, steps_per_epoch=num_train_examples//batch_size, epochs=number_of_epochs, callbacks=callbacks,\
+                   validation_data=eval_generator, validation_steps=num_eval_examples//batch_size, verbose=1)
+print(history.history['accuracy'])
+print(history.history['val_accuracy'])
+print(history.history.keys())

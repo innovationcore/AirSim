@@ -22,17 +22,19 @@ RAW_DATA_DIR = './raw_data/'
 COOKED_DATA_DIR = './cooked_data/'
 
 # Choose The folders to search for data under RAW_DATA_DIR
-COOK_ALL_DATA = True  
+COOK_ALL_DATA = False
 
 data_folders = []
 
 #if COOK_ALL_DATA is set to False, append your desired data folders here
-# data_folder.append('folder_name1')
+data_folders.append('airsim_rec.txt')
 # data_folder.append('folder_name2')
 # ...
 if COOK_ALL_DATA:
 	data_folders = [name for name in os.listdir(RAW_DATA_DIR)]
 
-
-full_path_raw_folders = [os.path.join(RAW_DATA_DIR, f) for f in data_folders]
+full_path_raw_folders =RAW_DATA_DIR
+#full_path_raw_folders = [os.path.join(RAW_DATA_DIR, f) for f in data_folders]
+print("full_path_raw_folders")
+print(full_path_raw_folders)
 Cooking.cook(full_path_raw_folders, COOKED_DATA_DIR, train_eval_test_split, chunk_size)

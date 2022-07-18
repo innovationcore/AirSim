@@ -39,16 +39,18 @@ def readImagesFromPath(image_names):
     """
     returnValue = []
     for image_name in image_names:
+        #image_name = image_name.replace("./raw_data/images/", "")
+        print("image_name: " + image_name)
         im = Image.open(image_name)
         imArr = np.asarray(im)
-        
+
         #Remove alpha channel if exists
         if len(imArr.shape) == 3 and imArr.shape[2] == 4:
             if (np.all(imArr[:, :, 3] == imArr[0, 0, 3])):
                 imArr = imArr[:,:,0:3]
         if len(imArr.shape) != 3 or imArr.shape[2] != 3:
             print('Error: Image', image_name, 'is not RGB.')
-            sys.exit()            
+            sys.exit()
 
         returnIm = np.asarray(imArr)
 
@@ -82,7 +84,7 @@ def splitTrainValidationAndTestData(all_data_mappings, split_ratio=(0.7, 0.2, 0.
 
     return [train_data_mappings, validation_data_mappings, test_data_mappings]
     
-def generateDataMapAirSim(folders):
+def generateDataMapAirSim(folder):
     """ Data map generator for simulator(AirSim) data. Reads the driving_log csv file and returns a list of 'center camera image name - label(s)' tuples
            Inputs:
                folders: list of folders to collect data from
@@ -94,41 +96,46 @@ def generateDataMapAirSim(folders):
     """
 
     all_mappings = {}
-    for folder in folders:
-        print('Reading data from {0}...'.format(folder))
-        current_df = pd.read_csv(os.path.join(folder, 'airsim_rec.txt'), sep='\t')
+    print("folder:")
+    print(folder)
+    data_location = folder
+    print('Reading data from {0}...'.format(folder))
+    #current_df = pd.read_csv(folder, sep='\t')
+    current_df = pd.read_csv(os.path.join(folder, 'airsim_rec.txt'), sep='\t')
         
-        for i in range(1, current_df.shape[0] - 1): 
-
-            
-            if current_df.iloc[i-1]['Brake'] != 0:   # Consider only training examples without breaks
-                continue
+    for i in range(1, current_df.shape[0] - 1):
 
 
-            norm_steering = [ (float(current_df.iloc[i-1][['Steering']]) + 1) / 2.0 ]  # Normalize steering: between 0 and 1
-            norm_throttle = [ float(current_df.iloc[i-1][['Throttle']]) ]
-            norm_speed = [ float(current_df.iloc[i-1][['Speed (kmph)']]) / MAX_SPEED ]  # Normalize speed: between 0 and 1
+        if current_df.iloc[i-1]['Brake'] != 0:   # Consider only training examples without breaks
+            continue
 
 
-            previous_state = norm_steering + norm_throttle + norm_speed   # Append lists
+        norm_steering = [ (float(current_df.iloc[i-1][['Steering']]) + 1) / 2.0 ]  # Normalize steering: between 0 and 1
+        norm_throttle = [ float(current_df.iloc[i-1][['Throttle']]) ]
+        norm_speed = [ float(current_df.iloc[i-1][['Speed']]) / MAX_SPEED ]  # Normalize speed: between 0 and 1
 
 
-            #compute average steering over 3 consecutive recorded images, this will serve as the label
+        previous_state = norm_steering + norm_throttle + norm_speed   # Append lists
 
-            norm_steering0 = (float(current_df.iloc[i][['Steering']]) + 1) / 2.0
-            norm_steering1 = (float(current_df.iloc[i+1][['Steering']]) + 1) / 2.0
 
-            temp_sum_steering = norm_steering[0] + norm_steering0 + norm_steering1
-            average_steering = temp_sum_steering / 3.0
+        #compute average steering over 3 consecutive recorded images, this will serve as the label
 
-            current_label = [average_steering]
-            
-            image_filepath = os.path.join(os.path.join(folder, 'images'), current_df.iloc[i]['ImageName']).replace('\\', '/')
-            
-            if (image_filepath in all_mappings):
-                print('Error: attempting to add image {0} twice.'.format(image_filepath))
-            
-            all_mappings[image_filepath] = (current_label, previous_state)
+        norm_steering0 = (float(current_df.iloc[i][['Steering']]) + 1) / 2.0
+        norm_steering1 = (float(current_df.iloc[i+1][['Steering']]) + 1) / 2.0
+
+        temp_sum_steering = norm_steering[0] + norm_steering0 + norm_steering1
+        average_steering = temp_sum_steering / 3.0
+
+        current_label = [average_steering]
+
+        #print(os.path.join(os.path.join(folder, 'images'), current_df.iloc[i]['ImageFile']).replace('\\', '/'))
+        image_filepath = os.path.join(os.path.join(folder, "images"), current_df.iloc[i]['ImageFile']).replace('\\', '/')
+        print("image_filepath: " + image_filepath)
+
+        if (image_filepath in all_mappings):
+            print('Error: attempting to add image {0} twice.'.format(image_filepath))
+
+        all_mappings[image_filepath] = (current_label, previous_state)
 
     mappings = [(key, all_mappings[key]) for key in all_mappings]
     
@@ -151,9 +158,14 @@ def generatorForH5py(data_mappings, chunk_size=32):
             
             #Flatten and yield as tuple
             yield (image_names_chunk, labels_chunk.astype(float), previous_state_chunk.astype(float))
+
             if chunk_id + chunk_size > len(data_mappings):
+                x = chunk_size + chunk_id
+                print(x)
+                print(len(data_mappings))
                 raise StopIteration
-    raise StopIteration
+    return
+    #raise StopIteration
     
     
 def saveH5pyData(data_mappings, target_file_path, chunk_size):

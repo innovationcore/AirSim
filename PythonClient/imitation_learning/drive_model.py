@@ -1,7 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 import tensorflow as tf
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 import sys
 import time
 import numpy as np
@@ -9,7 +9,7 @@ import numpy as np
 import airsim
 
 import keras.backend as K
-from keras.preprocessing import image
+from tensorflow.keras.preprocessing import image
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 
@@ -38,9 +38,9 @@ def get_image():
     Get image from AirSim client
     """
     image_response = client.simGetImages([airsim.ImageRequest("0", airsim.ImageType.Scene, False, False)])[0]
-    image1d = np.fromstring(image_response.image_data_uint8, dtype=np.uint8)
+    image1d = np.frombuffer(image_response.image_data_uint8, dtype=np.uint8)
     image_rgb = image1d.reshape(image_response.height, image_response.width, 3)
-    return image_rgb[78:144,27:227,0:2].astype(float)
+    return image_rgb[78:144,27:227,0:3].astype(float)
 
 while True:    
     # Update throttle value according to steering angle
@@ -48,7 +48,7 @@ while True:
         car_controls.throttle = 0.8-(0.4*abs(car_controls.steering))
     else:
         car_controls.throttle = 0.4
-    
+
     image_buf[0] = get_image()
     image_buf[0] /= 255 # Normalization
 
