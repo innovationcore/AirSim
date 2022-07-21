@@ -24,14 +24,14 @@ import math
 # Hyper-parameters
 batch_size = 32
 learning_rate = 0.0001
-number_of_epochs = 500
+number_of_epochs = 1000
 
 # Activation functions
 activation = 'relu'
 out_activation = 'sigmoid'
 
 #Stop training if in the last 20 epochs, there was no change of the best recorded validation loss
-training_patience = 20
+training_patience = 100
 
 
 # << The directory containing the cooked data from the previous step >>
@@ -79,7 +79,7 @@ img_stack = Dense(1, name="output", activation = out_activation, kernel_initiali
 adam = Adam(lr=learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 
 model = Model(inputs=[pic_input], outputs=img_stack)
-model.compile(optimizer=adam, loss='mse', metrics=[tf.keras.metrics.Accuracy()])
+model.compile(optimizer=adam, loss='mse')
 
 model.summary()
 
@@ -89,11 +89,8 @@ checkpoint_filepath =os.path.join(MODEL_OUTPUT_DIR, 'model-{epoch:02d}-{val_loss
 #checkpoint_filepath = os.path.join(MODEL_OUTPUT_DIR, 'fresh_models/', '{0}_model_{1}-{2}.h5'.format('model', '{{epoch:02d}}', '{{val_loss:.7f}}'))
 print(checkpoint_filepath)
 checkpoint_callback = ModelCheckpoint(checkpoint_filepath, save_best_only=True, verbose=1)
-#early_stopping_callback = EarlyStopping(monitor="val_loss", patience=training_patience, verbose=1)
-callbacks=[plateau_callback, csv_callback, checkpoint_callback]
+early_stopping_callback = EarlyStopping(monitor="val_loss", patience=training_patience, verbose=1)
+callbacks=[plateau_callback, csv_callback, checkpoint_callback, early_stopping_callback]
 
 history = model.fit(train_generator, steps_per_epoch=num_train_examples//batch_size, epochs=number_of_epochs, callbacks=callbacks,\
-                   validation_data=eval_generator, validation_steps=num_eval_examples//batch_size, verbose=1)
-print(history.history['accuracy'])
-print(history.history['val_accuracy'])
-print(history.history.keys())
+                   validation_data=eval_generator, validation_steps=num_eval_examples//batch_size, verbose=2)

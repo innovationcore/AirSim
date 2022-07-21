@@ -84,7 +84,7 @@ def splitTrainValidationAndTestData(all_data_mappings, split_ratio=(0.7, 0.2, 0.
 
     return [train_data_mappings, validation_data_mappings, test_data_mappings]
     
-def generateDataMapAirSim(folder):
+def generateDataMapAirSim(folders):
     """ Data map generator for simulator(AirSim) data. Reads the driving_log csv file and returns a list of 'center camera image name - label(s)' tuples
            Inputs:
                folders: list of folders to collect data from
@@ -96,46 +96,47 @@ def generateDataMapAirSim(folder):
     """
 
     all_mappings = {}
-    print("folder:")
-    print(folder)
-    data_location = folder
-    print('Reading data from {0}...'.format(folder))
-    #current_df = pd.read_csv(folder, sep='\t')
-    current_df = pd.read_csv(os.path.join(folder, 'airsim_rec.txt'), sep='\t')
-        
-    for i in range(1, current_df.shape[0] - 1):
+    for folder in folders:
+        print("folder:")
+        print(folder)
+        data_location = folder
+        print('Reading data from {0}...'.format(folder))
+        #current_df = pd.read_csv(folder, sep='\t')
+        current_df = pd.read_csv(os.path.join(folder, 'airsim_rec.txt'), sep='\t')
+
+        for i in range(1, current_df.shape[0] - 1):
 
 
-        if current_df.iloc[i-1]['Brake'] != 0:   # Consider only training examples without breaks
-            continue
+            #if current_df.iloc[i-1]['Brake'] != 0:   # Consider only training examples without breaks
+             #   continue
 
 
-        norm_steering = [ (float(current_df.iloc[i-1][['Steering']]) + 1) / 2.0 ]  # Normalize steering: between 0 and 1
-        norm_throttle = [ float(current_df.iloc[i-1][['Throttle']]) ]
-        norm_speed = [ float(current_df.iloc[i-1][['Speed']]) / MAX_SPEED ]  # Normalize speed: between 0 and 1
+            norm_steering = [ (float(current_df.iloc[i-1][['Steering']]) + 1) / 2.0 ]  # Normalize steering: between 0 and 1
+            norm_throttle = [ float(current_df.iloc[i-1][['Throttle']]) ]
+            norm_speed = [ float(current_df.iloc[i-1][['Speed']]) / MAX_SPEED ]  # Normalize speed: between 0 and 1
 
 
-        previous_state = norm_steering + norm_throttle + norm_speed   # Append lists
+            previous_state = norm_steering + norm_throttle + norm_speed   # Append lists
 
 
-        #compute average steering over 3 consecutive recorded images, this will serve as the label
+            #compute average steering over 3 consecutive recorded images, this will serve as the label
 
-        norm_steering0 = (float(current_df.iloc[i][['Steering']]) + 1) / 2.0
-        norm_steering1 = (float(current_df.iloc[i+1][['Steering']]) + 1) / 2.0
+            norm_steering0 = (float(current_df.iloc[i][['Steering']]) + 1) / 2.0
+            norm_steering1 = (float(current_df.iloc[i+1][['Steering']]) + 1) / 2.0
 
-        temp_sum_steering = norm_steering[0] + norm_steering0 + norm_steering1
-        average_steering = temp_sum_steering / 3.0
+            temp_sum_steering = norm_steering[0] + norm_steering0 + norm_steering1
+            average_steering = temp_sum_steering / 3.0
 
-        current_label = [average_steering]
+            current_label = [average_steering]
 
-        #print(os.path.join(os.path.join(folder, 'images'), current_df.iloc[i]['ImageFile']).replace('\\', '/'))
-        image_filepath = os.path.join(os.path.join(folder, "images"), current_df.iloc[i]['ImageFile']).replace('\\', '/')
-        print("image_filepath: " + image_filepath)
+            #print(os.path.join(os.path.join(folder, 'images'), current_df.iloc[i]['ImageFile']).replace('\\', '/'))
+            image_filepath = os.path.join(os.path.join(folder, "images"), current_df.iloc[i]['ImageFile']).replace('\\', '/')
+            print("image_filepath: " + image_filepath)
 
-        if (image_filepath in all_mappings):
-            print('Error: attempting to add image {0} twice.'.format(image_filepath))
+            if (image_filepath in all_mappings):
+                print('Error: attempting to add image {0} twice.'.format(image_filepath))
 
-        all_mappings[image_filepath] = (current_label, previous_state)
+            all_mappings[image_filepath] = (current_label, previous_state)
 
     mappings = [(key, all_mappings[key]) for key in all_mappings]
     
