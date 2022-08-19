@@ -1,4 +1,5 @@
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -31,7 +32,8 @@ activation = 'relu'
 out_activation = 'sigmoid'
 
 #Stop training if in the last 20 epochs, there was no change of the best recorded validation loss
-training_patience = 100
+training_patience = 25
+
 
 
 # << The directory containing the cooked data from the previous step >>

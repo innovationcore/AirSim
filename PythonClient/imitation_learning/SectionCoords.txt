@@ -1,0 +1,3 @@
+coords for section 1:
+y: 2 to -5
+x: 73 to 77

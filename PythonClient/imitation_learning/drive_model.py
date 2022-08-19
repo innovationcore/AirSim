@@ -63,8 +63,12 @@ while True:
     # Rescale prediction to [-1,1] and factor by 0.82 for drive smoothness
     car_controls.steering = round((0.82*(float((model_output[0][0]*2.0)-1))), 2)
     
+    position = client.simGetObjectPose("car1").position
+    print(position.x_val)
+    print(position.y_val)
+
     # Print progress
-    print('Sending steering = {0}, throttle = {1}, prediction time = {2}'.format(received_output, car_controls.throttle,str(end_time-start_time)))
+    #print('Sending steering = {0}, throttle = {1}, prediction time = {2}'.format(received_output, car_controls.throttle,str(end_time-start_time)))
     
     # Update next car state
     client.setCarControls(car_controls)
